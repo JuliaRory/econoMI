@@ -1,0 +1,25 @@
+econoMI UI
+
+Запуск:
+
+    venv\Scripts\python.exe start.py
+
+Что делает интерфейс:
+
+- открывает полноэкранное окно предъявления стимулов;
+- запускает/останавливает последовательность пробелом или кнопкой в панели;
+- показывает resources/background.png как фон;
+- показывает resources/cross_image.png на интервал ISI;
+- показывает изображения в оригинальном размере по центру;
+- тип "руки" берет стимулы из resources/stimuli/HLJT images;
+- тип "фигуры" берет стимулы из resources/stimuli/MentalRotation images;
+- принимает ответы Left/Right во время стимула, сохраняет ответ и RT в мс;
+- отправляет события стимулов в поток stimuli, ответы в поток responses;
+- при включенном "Сохранять файл" запускает запись NVX и добавляет потоки eeg, stimuli, responses в один HDF5 через drivers/control.qml.
+
+Для Resonance/QML:
+
+- service name Python-приложения: econoMI;
+- управляющий поток: controlSignal;
+- поток стимулов: stimuli;
+- поток ответов: responses.
