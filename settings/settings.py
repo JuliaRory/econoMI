@@ -41,6 +41,7 @@ class StimuliSettings:
     hands_stimuli_folder: str = r"resources\stimuli\HLJT images"
     figures_stimuli_folder: str = r"resources\stimuli\MentalRotation images"
     arrows_stimuli_folder: str = r"resources\stimuli\RT"
+    response_keys_file: str = r"settings\response_keys.json"
     hands_bundle: str = ""
     figures_bundle: str = ""
     use_all_stimuli: bool = True

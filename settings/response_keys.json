@@ -1,0 +1,36 @@
+{
+  "left": [
+    "A",
+    "Q",
+    "W",
+    "E",
+    "R",
+    "F",
+    "D",
+    "S",
+    "Z",
+    "C",
+    "V",
+    "Tab",
+    "CapsLock",
+    "LeftShift"
+  ],
+  "right": [
+    "Numpad0",
+    "Numpad1",
+    "Numpad2",
+    "Numpad3",
+    "Numpad4",
+    "Numpad5",
+    "Numpad6",
+    "Numpad7",
+    "Numpad8",
+    "Numpad9",
+    "NumpadDecimal",
+    "NumpadEnter",
+    "NumpadAdd",
+    "NumpadSubtract",
+    "NumpadMultiply",
+    "NumpadDivide"
+  ]
+}

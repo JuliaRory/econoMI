@@ -1,5 +1,7 @@
+import json
 import os
 import random
+import sys
 from datetime import datetime
 
 from PyQt5.QtCore import QElapsedTimer, Qt, QTimer, QUrl, pyqtSignal
@@ -11,6 +13,103 @@ from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 
 MESSAGE_LABEL_STYLE = "color: white; background: rgba(0, 0, 0, 110); padding: 24px; font-size: 28pt; font-weight: 700;"
 RESULT_LABEL_STYLE = "color: white; background: rgba(0, 0, 0, 150); padding: 8px; font-size: 72pt; font-weight: 800;"
+
+
+DEFAULT_RESPONSE_KEYS = {
+    "left": ["A", "Q", "W", "E", "R", "F", "D", "S", "Z", "C", "V", "Tab", "CapsLock", "LeftShift"],
+    "right": [
+        "Numpad0",
+        "Numpad1",
+        "Numpad2",
+        "Numpad3",
+        "Numpad4",
+        "Numpad5",
+        "Numpad6",
+        "Numpad7",
+        "Numpad8",
+        "Numpad9",
+        "NumpadDecimal",
+        "NumpadEnter",
+        "NumpadAdd",
+        "NumpadSubtract",
+        "NumpadMultiply",
+        "NumpadDivide",
+    ],
+}
+
+
+def _qt_keys(*names):
+    return {getattr(Qt, name) for name in names if hasattr(Qt, name)}
+
+
+NUMPAD_KEY_CODES = {
+    "numpad0": _qt_keys("Key_0", "Key_Insert"),
+    "numpad1": _qt_keys("Key_1", "Key_End"),
+    "numpad2": _qt_keys("Key_2", "Key_Down"),
+    "numpad3": _qt_keys("Key_3", "Key_PageDown"),
+    "numpad4": _qt_keys("Key_4", "Key_Left"),
+    "numpad5": _qt_keys("Key_5", "Key_Clear"),
+    "numpad6": _qt_keys("Key_6", "Key_Right"),
+    "numpad7": _qt_keys("Key_7", "Key_Home"),
+    "numpad8": _qt_keys("Key_8", "Key_Up"),
+    "numpad9": _qt_keys("Key_9", "Key_PageUp"),
+    "numpaddecimal": _qt_keys("Key_Period", "Key_Comma", "Key_Delete"),
+    "numpadenter": _qt_keys("Key_Enter", "Key_Return"),
+    "numpadadd": _qt_keys("Key_Plus"),
+    "numpadsubtract": _qt_keys("Key_Minus"),
+    "numpadmultiply": _qt_keys("Key_Asterisk"),
+    "numpaddivide": _qt_keys("Key_Slash"),
+}
+
+
+KEY_NAME_CODES = {
+    "tab": Qt.Key_Tab,
+    "capslock": Qt.Key_CapsLock,
+    "leftshift": Qt.Key_Shift,
+    "rightshift": Qt.Key_Shift,
+    "shift": Qt.Key_Shift,
+    "enter": Qt.Key_Return,
+    "return": Qt.Key_Return,
+    "space": Qt.Key_Space,
+    "escape": Qt.Key_Escape,
+    "esc": Qt.Key_Escape,
+    "plus": Qt.Key_Plus,
+    "minus": Qt.Key_Minus,
+    "asterisk": Qt.Key_Asterisk,
+    "slash": Qt.Key_Slash,
+    "period": Qt.Key_Period,
+    "comma": Qt.Key_Comma,
+}
+
+
+LATIN_TO_RUSSIAN_KEY_TEXT = {
+    "Q": "й",
+    "W": "ц",
+    "E": "у",
+    "R": "к",
+    "T": "е",
+    "Y": "н",
+    "U": "г",
+    "I": "ш",
+    "O": "щ",
+    "P": "з",
+    "A": "ф",
+    "S": "ы",
+    "D": "в",
+    "F": "а",
+    "G": "п",
+    "H": "р",
+    "J": "о",
+    "K": "л",
+    "L": "д",
+    "Z": "я",
+    "X": "ч",
+    "C": "с",
+    "V": "м",
+    "B": "и",
+    "N": "т",
+    "M": "ь",
+}
 
 
 class HandStimuliPresentation(QWidget):
@@ -45,6 +144,7 @@ class HandStimuliPresentation(QWidget):
         self._current_stimulus = ""
         self._response_for_current_trial = None
         self._final_pixmap = QPixmap()
+        self._response_keymap = self._load_response_keymap()
 
         self.setWindowTitle("econoMI stimuli")
         self.setFocusPolicy(Qt.StrongFocus)
@@ -386,6 +486,116 @@ class HandStimuliPresentation(QWidget):
                 return part
         return None
 
+    def _load_response_keymap(self):
+        path = self._response_keys_path()
+        response_keys = DEFAULT_RESPONSE_KEYS
+        try:
+            with open(path, "r", encoding="utf-8") as file:
+                loaded = json.load(file)
+            if not isinstance(loaded, dict):
+                raise ValueError("JSON root must be an object")
+            response_keys = loaded
+        except Exception as exc:
+            print(f"Warning: response keys config '{path}' could not be loaded: {exc}. Using defaults.")
+        return self._compile_response_keymap(response_keys)
+
+    def _response_keys_path(self):
+        configured_path = getattr(self.settings, "response_keys_file", r"settings\response_keys.json")
+        if os.path.isabs(configured_path):
+            return configured_path
+
+        candidates = [
+            os.path.abspath(configured_path),
+            os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), configured_path),
+            os.path.join(getattr(sys, "_MEIPASS", ""), configured_path),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", configured_path)),
+        ]
+        for candidate in candidates:
+            if candidate and os.path.exists(candidate):
+                return candidate
+        return candidates[0]
+
+    def _compile_response_keymap(self, response_keys):
+        keymap = {
+            "left": {"plain": set(), "keypad": set(), "text": set()},
+            "right": {"plain": set(), "keypad": set(), "text": set()},
+        }
+        for side in ("left", "right"):
+            tokens = response_keys.get(side, DEFAULT_RESPONSE_KEYS[side])
+            if not isinstance(tokens, list):
+                print(f"Warning: response keys group '{side}' must be a list. Using defaults for this group.")
+                tokens = DEFAULT_RESPONSE_KEYS[side]
+            for token in tokens:
+                parsed = self._parse_response_key_token(token)
+                text_aliases = self._response_text_aliases(token)
+                if parsed is None and not text_aliases:
+                    print(f"Warning: unknown response key '{token}' in group '{side}' was ignored.")
+                    continue
+                if parsed is not None:
+                    target, codes = parsed
+                    keymap[side][target].update(codes)
+                keymap[side]["text"].update(text_aliases)
+        return keymap
+
+    @staticmethod
+    def _parse_response_key_token(token):
+        if not isinstance(token, str):
+            return None
+        raw_name = token.strip()
+        if not raw_name:
+            return None
+        normalized = raw_name.replace(" ", "").replace("_", "").replace("-", "").lower()
+
+        if normalized in NUMPAD_KEY_CODES:
+            codes = {code for code in NUMPAD_KEY_CODES[normalized] if code is not None}
+            return ("keypad", codes) if codes else None
+
+        if normalized in KEY_NAME_CODES:
+            return "plain", {KEY_NAME_CODES[normalized]}
+
+        if len(raw_name) == 1:
+            char = raw_name.upper()
+            if "A" <= char <= "Z":
+                return "plain", {getattr(Qt, f"Key_{char}")}
+            if "0" <= char <= "9":
+                return "plain", {getattr(Qt, f"Key_{char}")}
+
+        qt_name = raw_name if raw_name.startswith("Key_") else f"Key_{raw_name}"
+        if hasattr(Qt, qt_name):
+            return "plain", {getattr(Qt, qt_name)}
+        qt_name = f"Key_{raw_name[:1].upper()}{raw_name[1:]}"
+        if hasattr(Qt, qt_name):
+            return "plain", {getattr(Qt, qt_name)}
+        return None
+
+    @staticmethod
+    def _response_text_aliases(token):
+        if not isinstance(token, str):
+            return set()
+        raw_name = token.strip()
+        if len(raw_name) != 1:
+            return set()
+
+        aliases = {raw_name.casefold()}
+        latin_name = raw_name.upper()
+        russian_text = LATIN_TO_RUSSIAN_KEY_TEXT.get(latin_name)
+        if russian_text is not None:
+            aliases.add(russian_text.casefold())
+        return aliases
+
+    def _event_response_side(self, event):
+        key = event.key()
+        is_keypad = bool(event.modifiers() & Qt.KeypadModifier)
+        text = event.text().casefold()
+        for side in ("left", "right"):
+            if key in self._response_keymap[side]["plain"]:
+                return side
+            if is_keypad and key in self._response_keymap[side]["keypad"]:
+                return side
+            if text and text in self._response_keymap[side]["text"]:
+                return side
+        return None
+
     def _show_blank(self):
         if hasattr(self, "_intro_video_widget"):
             self._intro_video_widget.hide()
@@ -465,16 +675,14 @@ class HandStimuliPresentation(QWidget):
 
         super().keyPressEvent(event)
 
-    @staticmethod
-    def _is_numpad_6_event(event):
-        is_keypad = bool(event.modifiers() & Qt.KeypadModifier)
-        return is_keypad and event.key() in (Qt.Key_6, Qt.Key_Right)
-
     def _is_response_key(self, event):
-        return event.key() == Qt.Key_A or self._is_numpad_6_event(event)
+        return self._event_response_side(event) is not None
 
     def _response_from_key_event(self, event):
-        is_left_response = event.key() == Qt.Key_A
+        response_side = self._event_response_side(event)
+        if response_side is None:
+            return None
+        is_left_response = response_side == "left"
         if int(getattr(self.settings, "stimulus_type_curr", 0)) == 1:
             return "Mirror" if is_left_response else "Same"
         return "L" if is_left_response else "R"

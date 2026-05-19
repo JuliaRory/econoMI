@@ -9,6 +9,7 @@ a = Analysis(
         ("resources", "resources"),
         ("styles", "styles"),
         ("drivers", "drivers"),
+        ("settings/response_keys.json", "settings"),
     ],
     hiddenimports=[
         "PyQt5.QtMultimedia",
