@@ -25,12 +25,25 @@ class StimuliSettings:
     isi_min_s: float = 1.5
     isi_max_s: float = 3.0
     stimulus_ms: int = 3000
+    blank_s: float = 0.5
+    blank_range_enabled: bool = False
+    blank_min_s: float = 0.5
+    blank_max_s: float = 1.0
     blank_ms: int = 500
-    background_image: str = r"resources\background.png"
-    cross_image: str = r"resources\cross_image.png"
+    background_image: str = r"resources\base images\base_white_barred_lightGrey.png"
+    stimulus_background_image: str = r"resources\base images\base_black_barred_lightGrey.png"
+    cross_image: str = r"resources\base images\base_cross_white_barred_lightGrey.png"
+    welcome_image: str = r"resources\base images\base_welcome_barred_lightGrey.png"
+    welcome_ms: int = 2000
+    intro_video: str = r"resources\audio_countdown_3.mkv"
+    final_images_folder: str = r"resources\final_images"
     stimuli_folder: str = r"resources\stimuli\HLJT images"
     hands_stimuli_folder: str = r"resources\stimuli\HLJT images"
     figures_stimuli_folder: str = r"resources\stimuli\MentalRotation images"
+    hands_bundle: str = ""
+    figures_bundle: str = ""
+    use_all_stimuli: bool = True
+    stimulus_count: int = 1
     extensions: List[str] = field(default_factory=lambda: [".png", ".jpg", ".jpeg", ".bmp"])
 
 

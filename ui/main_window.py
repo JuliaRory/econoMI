@@ -2,7 +2,8 @@ import os
 import subprocess
 
 from PyQt5.QtCore import Qt
-from PyQt5.QtWidgets import QLabel, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 from settings.settings import AppSettings
 from ui.stimuli_control_panel import StimuliControlPanel
@@ -17,10 +18,16 @@ class MainWindow(QWidget):
         self._responses_stream = responses_stream
 
         self.setWindowTitle("econoMI UI")
+        self._set_window_icon()
         self._launch_qml_control_if_needed()
         self._setup_ui()
         self._setup_layout()
         self.resize(980, 540)
+
+    def _set_window_icon(self):
+        icon_path = os.path.abspath(os.path.join("resources", "icon_hand.png"))
+        if os.path.isfile(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
     def _setup_ui(self):
         self._stimuli_panel = StimuliControlPanel(
@@ -35,9 +42,13 @@ class MainWindow(QWidget):
         self._status_panel.setObjectName("panel")
         self._status_label = QLabel("NVX: ожидание", self._status_panel)
         self._status_label.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self._recording_indicator_label = QLabel("•Rec", self._status_panel)
+        self._recording_indicator_label.setAlignment(Qt.AlignTop | Qt.AlignRight)
+        self._recording_indicator_label.setStyleSheet("color: #d00000; font-weight: 700; font-size: 14pt;")
+        self._recording_indicator_label.hide()
 
         self._current_stimulus_label = QLabel("Стимул: --", self._status_panel)
-        self._summary_label = QLabel("Правильных ответов: --", self._status_panel)
+        self._summary_label = QLabel("Результат: --", self._status_panel)
 
         self._answers_table = QTableWidget(0, 4, self._status_panel)
         self._answers_table.setHorizontalHeaderLabels(["#", "Стимул", "Ответ", "RT, мс"])
@@ -51,13 +62,20 @@ class MainWindow(QWidget):
         self._stimuli_panel.recordingFinished.connect(self._on_recording_finished)
         self._stimuli_panel.currentStimulusChanged.connect(self._on_current_stimulus_changed)
         self._stimuli_panel.trialResultReady.connect(self._on_trial_result_ready)
+        self._stimuli_panel.resultsFileLoaded.connect(self._on_results_file_loaded)
         self._stimuli_panel.sequenceSummaryReady.connect(self._on_sequence_summary_ready)
+        self._stimuli_panel.load_existing_results_if_available()
 
     def _setup_layout(self):
+        status_header_layout = QHBoxLayout()
+        status_header_layout.setContentsMargins(0, 0, 0, 0)
+        status_header_layout.addWidget(self._status_label, 1)
+        status_header_layout.addWidget(self._recording_indicator_label, 0, Qt.AlignTop | Qt.AlignRight)
+
         status_layout = QVBoxLayout(self._status_panel)
         status_layout.setContentsMargins(14, 14, 14, 14)
         status_layout.setSpacing(10)
-        status_layout.addWidget(self._status_label)
+        status_layout.addLayout(status_header_layout)
         status_layout.addWidget(self._current_stimulus_label)
         status_layout.addWidget(self._summary_label)
         status_layout.addWidget(self._answers_table)
@@ -88,19 +106,24 @@ class MainWindow(QWidget):
 
     def _on_recording_started(self, hdf_path):
         self._status_label.setText(f"NVX: запись\nHDF: {hdf_path}")
+        self._recording_indicator_label.show()
 
     def _on_recording_finished(self):
         self._status_label.setText("NVX: остановлено")
+        self._recording_indicator_label.hide()
 
     def _on_presentation_started(self):
         self._answers_table.setRowCount(0)
         self._current_stimulus_label.setText("Стимул: --")
-        self._summary_label.setText("Правильных ответов: --")
+        self._summary_label.setText("Результат: --")
 
     def _on_current_stimulus_changed(self, stimulus_name):
         self._current_stimulus_label.setText(f"Стимул: {stimulus_name}")
 
     def _on_trial_result_ready(self, result):
+        self._append_result_row(result)
+
+    def _append_result_row(self, result):
         row = self._answers_table.rowCount()
         self._answers_table.insertRow(row)
         values = [
@@ -116,8 +139,32 @@ class MainWindow(QWidget):
             self._answers_table.setItem(row, column, item)
         self._answers_table.scrollToBottom()
 
+    def _on_results_file_loaded(self, rows, csv_path):
+        self._answers_table.setRowCount(0)
+        for result in rows:
+            self._append_result_row(result)
+        if csv_path:
+            self._summary_label.setText(f"Загружены результаты. Правильно: {self._results_summary(rows)}\n{csv_path}")
+        else:
+            self._summary_label.setText("Результат: --")
+
     def _on_sequence_summary_ready(self, text):
         self._summary_label.setText(text)
+
+    def _results_summary(self, rows):
+        total = len(rows)
+        if total == 0:
+            return "0% (0/0)"
+        correct = sum(1 for row in rows if self._is_correct_result(row))
+        percent = correct * 100.0 / total
+        return f"{percent:.0f}% ({correct}/{total})"
+
+    @staticmethod
+    def _is_correct_result(row):
+        value = row.get("is_correct")
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "y", "да"}
+        return bool(value)
 
     def closeEvent(self, event):
         try:

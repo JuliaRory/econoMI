@@ -1,0 +1,6 @@
+'L_dorsal_angle0_spreadHIGH_245.png',
+'R_dorsal_angle0_spreadLOW_35.png',
+'L_dorsal_angle0_spreadMEDIUM_52.png',
+'R_dorsal_angle0_spreadMEDIUM_120.png',
+'L_dorsal_angle0_spreadLOW_181.png',
+'R_dorsal_angle45_spreadHIGH_44.png',
