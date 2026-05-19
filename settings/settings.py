@@ -19,13 +19,13 @@ class StimuliSettings:
     monitor: int = 2
     stimulus_type: str = "руки"
     stimulus_type_curr: int = 0
-    stimulus_types: List[str] = field(default_factory=lambda: ["руки", "фигуры"])
+    stimulus_types: List[str] = field(default_factory=lambda: ["руки", "фигуры", "стрелки"])
     isi_s: float = 1.5
     isi_range_enabled: bool = False
     isi_min_s: float = 1.5
     isi_max_s: float = 3.0
-    stimulus_ms: int = 3000
-    blank_s: float = 0.5
+    stimulus_ms: int = 4000
+    blank_s: float = 1.0
     blank_range_enabled: bool = False
     blank_min_s: float = 0.5
     blank_max_s: float = 1.0
@@ -40,6 +40,7 @@ class StimuliSettings:
     stimuli_folder: str = r"resources\stimuli\HLJT images"
     hands_stimuli_folder: str = r"resources\stimuli\HLJT images"
     figures_stimuli_folder: str = r"resources\stimuli\MentalRotation images"
+    arrows_stimuli_folder: str = r"resources\stimuli\RT"
     hands_bundle: str = ""
     figures_bundle: str = ""
     use_all_stimuli: bool = True

@@ -2,10 +2,11 @@ import ast
 import csv
 import json
 import os
+import random
 from datetime import datetime
 
 from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QComboBox, QFrame, QLabel, QMessageBox, QSizePolicy, QWidget, QVBoxLayout
+from PyQt5.QtWidgets import QComboBox, QFileDialog, QFrame, QLabel, QMessageBox, QSizePolicy, QWidget, QVBoxLayout
 
 from settings.settings import AppSettings
 from ui.video_player import HandStimuliPresentation
@@ -25,6 +26,7 @@ class StimuliControlPanel(QFrame):
     trialResultReady = pyqtSignal(dict)
     resultsFileLoaded = pyqtSignal(list, str)
     sequenceSummaryReady = pyqtSignal(str)
+    batLaunchRequested = pyqtSignal(str)
 
     def __init__(self, settings: AppSettings, resonance, stimuli_stream, responses_stream, parent=None):
         super().__init__(parent)
@@ -60,6 +62,10 @@ class StimuliControlPanel(QFrame):
         self.line_edit_subject = create_lineedit(record.subject, parent=self, w=140)
         self.line_edit_record = create_lineedit(record.record_name, parent=self, w=180)
         self.check_box_save = create_check_box(record.save_hdf, "Сохранять файл", parent=self)
+        self.check_box_activate_bat = create_check_box(record.activate_bat, "Запускать bat", parent=self)
+        self.line_edit_bat_file = create_lineedit(record.bat_file, parent=self, w=240)
+        self.button_browse_bat = create_button("...", parent=self, w=36)
+        self.button_launch_bat = create_button("Запустить", parent=self, w=90)
 
         self.combo_box_stimulus_type = QComboBox(self)
         self.combo_box_stimulus_type.addItems(stimuli.stimulus_types)
@@ -120,6 +126,8 @@ class StimuliControlPanel(QFrame):
         layout.addLayout(create_hbox([QLabel("Испытуемый:", frame), self.line_edit_subject]))
         layout.addLayout(create_hbox([QLabel("Запись:", frame), self.line_edit_record]))
         layout.addWidget(self.check_box_save)
+        layout.addWidget(self.check_box_activate_bat)
+        layout.addLayout(create_hbox([QLabel("bat_file:", frame), self.line_edit_bat_file, self.button_browse_bat, self.button_launch_bat]))
         return frame
 
     def _create_stimuli_settings_block(self):
@@ -170,6 +178,8 @@ class StimuliControlPanel(QFrame):
         self.button_play.clicked.connect(self._on_play_button_click)
         self.button_stop.clicked.connect(self._on_stop_button_click)
         self.button_show_result.clicked.connect(self._on_show_result_button_click)
+        self.button_browse_bat.clicked.connect(self._on_browse_bat_file)
+        self.button_launch_bat.clicked.connect(self._on_launch_bat_button_click)
         self.combo_box_stimulus_type.currentTextChanged.connect(self._on_stimulus_type_changed)
         self.combo_box_hljt_bundle.currentTextChanged.connect(self._on_bundle_changed)
         self.combo_box_mental_rotation_bundle.currentTextChanged.connect(self._on_bundle_changed)
@@ -188,11 +198,20 @@ class StimuliControlPanel(QFrame):
         self.line_edit_subject.textChanged.connect(self._on_record_identity_changed)
         self.line_edit_record.textChanged.connect(self._on_record_identity_changed)
         self.check_box_save.stateChanged.connect(self._sync_settings_from_ui)
+        self.check_box_activate_bat.stateChanged.connect(self._sync_settings_from_ui)
+        self.line_edit_bat_file.textChanged.connect(self._sync_settings_from_ui)
 
     def _sync_settings_from_ui(self, *_args):
+        if self._is_arrows_stimulus_type() and self.check_box_all_stimuli.isChecked():
+            self.check_box_all_stimuli.blockSignals(True)
+            self.check_box_all_stimuli.setChecked(False)
+            self.check_box_all_stimuli.blockSignals(False)
+
         self.settings.record.subject = self.line_edit_subject.text().strip()
         self.settings.record.record_name = self.line_edit_record.text().strip()
         self.settings.record.save_hdf = self.check_box_save.isChecked()
+        self.settings.record.activate_bat = self.check_box_activate_bat.isChecked()
+        self.settings.record.bat_file = self.line_edit_bat_file.text().strip()
 
         self.settings.stimuli.stimulus_type_curr = self.combo_box_stimulus_type.currentIndex()
         self.settings.stimuli.stimulus_type = self.combo_box_stimulus_type.currentText()
@@ -232,7 +251,9 @@ class StimuliControlPanel(QFrame):
         self.spin_box_blank_max.setEnabled(blank_range_enabled)
 
     def _update_stimulus_count_widgets(self):
-        self.spin_box_stimulus_count.setEnabled(not self.check_box_all_stimuli.isChecked())
+        is_arrows = self._is_arrows_stimulus_type()
+        self.check_box_all_stimuli.setEnabled(not is_arrows)
+        self.spin_box_stimulus_count.setEnabled(is_arrows or not self.check_box_all_stimuli.isChecked())
 
     @staticmethod
     def _ordered_range_values(min_widget, max_widget):
@@ -259,6 +280,26 @@ class StimuliControlPanel(QFrame):
     def _on_stimulus_count_changed(self, *_args):
         self._sync_settings_from_ui()
         self._update_stimuli_count()
+
+    def _on_browse_bat_file(self):
+        path, _selected_filter = QFileDialog.getOpenFileName(
+            self,
+            "Выберите bat-файл",
+            os.path.dirname(self.line_edit_bat_file.text()) or os.getcwd(),
+            "Batch files (*.bat);;All files (*)",
+        )
+        if not path:
+            return
+        self.line_edit_bat_file.setText(path)
+        self._sync_settings_from_ui()
+
+    def _on_launch_bat_button_click(self):
+        self._sync_settings_from_ui()
+        path = self.settings.record.bat_file
+        if not path:
+            QMessageBox.warning(self, "bat_file", "Выберите bat-файл.")
+            return
+        self.batLaunchRequested.emit(path)
 
     def _on_record_identity_changed(self, *_args):
         self._sync_settings_from_ui()
@@ -300,12 +341,17 @@ class StimuliControlPanel(QFrame):
             return self.settings.stimuli.figures_stimuli_folder
         return self.settings.stimuli.hands_stimuli_folder
 
+    def _is_arrows_stimulus_type(self):
+        return self.combo_box_stimulus_type.currentIndex() == 2
+
     def _current_bundle_name(self):
         if self.combo_box_stimulus_type.currentIndex() == 1:
             return self.combo_box_mental_rotation_bundle.currentText()
         return self.combo_box_hljt_bundle.currentText()
 
     def _current_stimuli_folder(self):
+        if self._is_arrows_stimulus_type():
+            return self.settings.stimuli.arrows_stimuli_folder
         bundle_name = self._current_bundle_name()
         if not bundle_name:
             return ""
@@ -338,6 +384,9 @@ class StimuliControlPanel(QFrame):
         return [os.path.basename(str(item).strip()) for item in items if str(item).strip()]
 
     def _stimuli_files(self):
+        if self._is_arrows_stimulus_type():
+            return self._balanced_arrows_stimuli_files()
+
         folder = self._current_stimuli_folder()
         if not os.path.isdir(folder):
             return []
@@ -354,6 +403,36 @@ class StimuliControlPanel(QFrame):
         if self.check_box_all_stimuli.isChecked():
             return files
         return files[: int(self.spin_box_stimulus_count.value())]
+
+    def _balanced_arrows_stimuli_files(self):
+        folder = self.settings.stimuli.arrows_stimuli_folder
+        if not os.path.isdir(folder):
+            return []
+        extensions = {ext.lower() for ext in self.settings.stimuli.extensions}
+        files = [
+            os.path.join(folder, filename)
+            for filename in sorted(os.listdir(folder))
+            if os.path.splitext(filename)[1].lower() in extensions
+            and os.path.isfile(os.path.join(folder, filename))
+        ]
+        if not files:
+            return []
+
+        count = int(self.spin_box_stimulus_count.value())
+        if len(files) == 1:
+            return files * count
+
+        left = count // 2
+        right = count // 2
+        if count % 2:
+            if random.choice([True, False]):
+                left += 1
+            else:
+                right += 1
+
+        sequence = [files[0]] * left + [files[1]] * right
+        random.shuffle(sequence)
+        return sequence
 
     def _update_stimuli_count(self):
         n = len(self._stimuli_files())

@@ -4,7 +4,7 @@ import sys
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QHBoxLayout, QLabel, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget
 
 from settings.settings import AppSettings
 from ui.stimuli_control_panel import StimuliControlPanel
@@ -65,6 +65,7 @@ class MainWindow(QWidget):
         self._stimuli_panel.trialResultReady.connect(self._on_trial_result_ready)
         self._stimuli_panel.resultsFileLoaded.connect(self._on_results_file_loaded)
         self._stimuli_panel.sequenceSummaryReady.connect(self._on_sequence_summary_ready)
+        self._stimuli_panel.batLaunchRequested.connect(self._on_bat_launch_requested)
         self._stimuli_panel.load_existing_results_if_available()
 
     def _setup_layout(self):
@@ -95,15 +96,29 @@ class MainWindow(QWidget):
         record = self.settings.record
         if not record.activate_bat:
             return
-        bat_path = self._app_path(record.bat_file)
+        self._launch_bat_file(record.bat_file, warn=False)
+
+    def _launch_bat_file(self, path, warn=True):
+        bat_path = self._app_path(path)
         if not os.path.exists(bat_path):
-            print(f"QML control bat not found: {bat_path}")
+            message = f"QML control bat not found: {bat_path}"
+            if warn:
+                QMessageBox.warning(self, "bat_file", message)
+            else:
+                print(message)
             return
         try:
             creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
             subprocess.Popen([bat_path], cwd=os.path.dirname(bat_path), creationflags=creationflags)
         except Exception as exc:
-            print(f"Could not launch QML control: {exc}")
+            message = f"Could not launch QML control: {exc}"
+            if warn:
+                QMessageBox.warning(self, "bat_file", message)
+            else:
+                print(message)
+
+    def _on_bat_launch_requested(self, path):
+        self._launch_bat_file(path, warn=True)
 
     @staticmethod
     def _app_path(path):
