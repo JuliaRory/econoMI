@@ -368,7 +368,7 @@ class HandStimuliPresentation(QWidget):
             self._show_fit_pixmap(self._welcome_pixmap)
         elif phase == "stimulus":
             pixmap = QPixmap(self._current_stimulus)
-            self._show_centered_pixmap(pixmap)
+            self._show_stimulus_pixmap(pixmap)
             self._stimulus_clock.restart()
             self.stimulusShown.emit(self._current_stimulus)
         elif phase == "blank":
@@ -631,6 +631,31 @@ class HandStimuliPresentation(QWidget):
         )
         self._show_centered_pixmap(scaled)
 
+    def _show_stimulus_pixmap(self, pixmap):
+        if self._is_arrows_mode():
+            self._show_stretched_pixmap(pixmap)
+            return
+        self._show_centered_pixmap(pixmap)
+
+    def _show_stretched_pixmap(self, pixmap):
+        self._message_label.hide()
+        if pixmap.isNull():
+            self._image_label.clear()
+            self._image_label.hide()
+            return
+        scaled = pixmap.scaled(
+            self.size(),
+            Qt.IgnoreAspectRatio,
+            Qt.SmoothTransformation,
+        )
+        self._image_label.setPixmap(scaled)
+        self._image_label.setGeometry(self.rect())
+        self._image_label.show()
+        self._image_label.raise_()
+
+    def _is_arrows_mode(self):
+        return int(getattr(self.settings, "stimulus_type_curr", 0)) == 2
+
     def _update_background(self):
         pixmap = self._current_background_pixmap()
         if pixmap.isNull():
@@ -720,7 +745,7 @@ class HandStimuliPresentation(QWidget):
         elif self._phase == "welcome":
             self._show_fit_pixmap(self._welcome_pixmap)
         elif self._phase == "stimulus" and self._current_stimulus:
-            self._show_centered_pixmap(QPixmap(self._current_stimulus))
+            self._show_stimulus_pixmap(QPixmap(self._current_stimulus))
         elif self._phase == "finished" and not self._final_pixmap.isNull():
             self._show_fit_pixmap(self._final_pixmap)
             self._position_final_marker()
