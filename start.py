@@ -31,10 +31,11 @@ def _create_driver(app_name):
 
 
 if __name__ == "__main__":
-    os.environ.setdefault(
-        "QT_QPA_PLATFORM_PLUGIN_PATH",
-        os.path.abspath(r"venv\Lib\site-packages\PyQt5\Qt5\plugins"),
-    )
+    if not getattr(sys, "frozen", False):
+        os.environ.setdefault(
+            "QT_QPA_PLATFORM_PLUGIN_PATH",
+            os.path.abspath(r"venv\Lib\site-packages\PyQt5\Qt5\plugins"),
+        )
 
     app = QApplication(sys.argv)
     qss_path = os.path.join("styles", "theme.qss")

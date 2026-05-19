@@ -23,3 +23,7 @@ econoMI UI
 - управляющий поток: controlSignal;
 - поток стимулов: stimuli;
 - поток ответов: responses.
+
+
+
+pyinstaller --noconfirm .\start.spec

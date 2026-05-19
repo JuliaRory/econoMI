@@ -1,0 +1,27 @@
+[
+	{
+		"attributes": {
+			"activeStream": {
+				"connections": [],
+				"metaData": {}
+			},
+			"reconnect": false
+		},
+		"enabled": true,
+		"group": "default",
+		"index": 10,
+		"label": "controlSignal",
+		"name": "controlSignal",
+		"serialized": {
+			"desiredStream": {
+				"connections": [
+					"discover:///?stream=controlSignal&name=econoMI"
+				],
+				"metaData": {},
+				"name": "controlSignal",
+				"serializedType": "DgA="
+			}
+		},
+		"type": "Resonance::Parameters::Stream"
+	}
+]
