@@ -120,7 +120,8 @@ class HandStimuliPresentation(QWidget):
             self._started = True
             self._clock.start()
             self.stimuliStarted.emit()
-            self._start_intro_video()
+            # self._start_intro_video()
+            self._start_next_trial()
             return
         self._toggle_pause()
 
@@ -156,7 +157,7 @@ class HandStimuliPresentation(QWidget):
         font.setPointSize(80)
         font.setBold(True)
         self._message_label.setFont(font)
-        self._message_label.setText(f"Корректно: {percent:.0f}%")
+        self._message_label.setText(f"Правильно: {percent:.0f}%")
         self._message_label.show()
         self._message_label.raise_()
 
@@ -449,23 +450,34 @@ class HandStimuliPresentation(QWidget):
             self.finish()
             return
 
-        if self._phase == "stimulus" and event.key() in (Qt.Key_Left, Qt.Key_Right):
-            response = self._response_from_key(event.key())
+        if self._phase == "stimulus" and self._is_response_key(event):
+            response = self._response_from_key_event(event)
             self._response_for_current_trial = {
                 "response": response,
                 "rt_ms": int(self._stimulus_clock.elapsed()),
             }
-            self.responseCaptured.emit(self._build_trial_result(self._response_for_current_trial))
             self._timer.stop()
+            self._show_blank()
+            QApplication.processEvents()
+            self.responseCaptured.emit(self._build_trial_result(self._response_for_current_trial))
             self._finish_trial()
             return
 
         super().keyPressEvent(event)
 
-    def _response_from_key(self, key):
+    @staticmethod
+    def _is_numpad_6_event(event):
+        is_keypad = bool(event.modifiers() & Qt.KeypadModifier)
+        return is_keypad and event.key() in (Qt.Key_6, Qt.Key_Right)
+
+    def _is_response_key(self, event):
+        return event.key() == Qt.Key_A or self._is_numpad_6_event(event)
+
+    def _response_from_key_event(self, event):
+        is_left_response = event.key() == Qt.Key_A
         if int(getattr(self.settings, "stimulus_type_curr", 0)) == 1:
-            return "Mirror" if key == Qt.Key_Left else "Same"
-        return "L" if key == Qt.Key_Left else "R"
+            return "Mirror" if is_left_response else "Same"
+        return "L" if is_left_response else "R"
 
     def paintEvent(self, event):
         if not self._background_pixmap.isNull():

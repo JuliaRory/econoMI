@@ -1,5 +1,6 @@
 import os
 import subprocess
+import sys
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon
@@ -94,7 +95,7 @@ class MainWindow(QWidget):
         record = self.settings.record
         if not record.activate_bat:
             return
-        bat_path = os.path.abspath(record.bat_file)
+        bat_path = self._app_path(record.bat_file)
         if not os.path.exists(bat_path):
             print(f"QML control bat not found: {bat_path}")
             return
@@ -103,6 +104,13 @@ class MainWindow(QWidget):
             subprocess.Popen([bat_path], cwd=os.path.dirname(bat_path), creationflags=creationflags)
         except Exception as exc:
             print(f"Could not launch QML control: {exc}")
+
+    @staticmethod
+    def _app_path(path):
+        if os.path.isabs(path):
+            return path
+        base_dir = getattr(sys, "_MEIPASS", os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+        return os.path.abspath(os.path.join(base_dir, path))
 
     def _on_recording_started(self, hdf_path):
         self._status_label.setText(f"NVX: запись\nHDF: {hdf_path}")

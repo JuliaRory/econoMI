@@ -11,7 +11,7 @@ class RecordSettings:
     record_name: str = "record"
     save_hdf: bool = True
     activate_bat: bool = True
-    bat_file: str = r"C:\Users\hodor\Documents\lab-MSU\Works\2025.10_TMS\dist_2024_11_13_imp\control_hands.bat"
+    bat_file: str = r"D:\Resonance\dist_2025\control_econoMI.bat"
 
 
 @dataclass
