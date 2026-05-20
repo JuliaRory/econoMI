@@ -146,6 +146,8 @@ class HandStimuliPresentation(QWidget):
         self._response_for_current_trial = None
         self._final_pixmap = QPixmap()
         self._response_keymap = self._load_response_keymap()
+        self._intro_media_prepared = False
+        self._intro_media_failed = False
 
         self.setWindowTitle("econoMI stimuli")
         self.setFocusPolicy(Qt.StrongFocus)
@@ -200,6 +202,7 @@ class HandStimuliPresentation(QWidget):
         self._intro_player.setVideoOutput(self._intro_video_widget)
         self._intro_player.mediaStatusChanged.connect(self._on_intro_media_status_changed)
 
+        self._prepare_intro_video()
         self._set_monitor()
         self._show_blank()
 
@@ -231,8 +234,8 @@ class HandStimuliPresentation(QWidget):
             self._started = True
             self._clock.start()
             self.stimuliStarted.emit()
-            # self._start_intro_video()
-            self._start_next_trial()
+            self._start_intro_video()
+            # self._start_next_trial()
             return
         self._toggle_pause()
 
@@ -287,7 +290,7 @@ class HandStimuliPresentation(QWidget):
         self.showFullScreen()
 
     def _start_intro_video(self):
-        if not os.path.isfile(self._intro_video_path):
+        if not self._prepare_intro_video():
             self._start_next_trial()
             return
         self._phase = "intro_video"
@@ -300,8 +303,20 @@ class HandStimuliPresentation(QWidget):
         self._position_intro_marker()
         self._intro_marker_label.show()
         self._intro_marker_label.raise_()
-        self._intro_player.setMedia(QMediaContent(QUrl.fromLocalFile(self._intro_video_path)))
+        self._intro_player.setPosition(0)
         self._intro_player.play()
+
+    def _prepare_intro_video(self):
+        if self._intro_media_failed:
+            return False
+        if self._intro_media_prepared:
+            return True
+        if not os.path.isfile(self._intro_video_path):
+            return False
+        self._intro_media_failed = False
+        self._intro_player.setMedia(QMediaContent(QUrl.fromLocalFile(self._intro_video_path)))
+        self._intro_media_prepared = True
+        return True
 
     def _stop_intro_video(self):
         self._intro_player.stop()
@@ -313,6 +328,14 @@ class HandStimuliPresentation(QWidget):
             self._intro_video_widget.hide()
             self._intro_marker_label.hide()
             self._start_next_trial()
+        elif status == QMediaPlayer.InvalidMedia:
+            self._intro_media_failed = True
+            self._intro_media_prepared = False
+            print(f"Warning: intro video '{self._intro_video_path}' could not be loaded. Skipping intro.")
+            if self._phase == "intro_video" and not self._finished:
+                self._intro_video_widget.hide()
+                self._intro_marker_label.hide()
+                self._start_next_trial()
 
     def _position_intro_marker(self):
         margin = 0
