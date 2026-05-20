@@ -35,7 +35,7 @@ class StimuliSettings:
     cross_image: str = r"resources\base images\base_cross_white_barred_lightGrey.png"
     welcome_image: str = r"resources\base images\base_welcome_barred_lightGrey.png"
     welcome_ms: int = 2000
-    intro_video: str = r"resources\base images\countdownLight__whiteTrigger.mkv"
+    intro_video: str = r"resources\base images\countdownLight__whiteTrigger.mp4"
     final_images_folder: str = r"resources\final_images"
     stimuli_folder: str = r"resources\stimuli\HLJT images"
     hands_stimuli_folder: str = r"resources\stimuli\HLJT images"
