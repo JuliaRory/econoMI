@@ -44,6 +44,7 @@ class StimuliSettings:
     response_keys_file: str = r"settings\response_keys.json"
     hands_bundle: str = ""
     figures_bundle: str = ""
+    show_figure_response_labels: bool = True
     use_all_stimuli: bool = True
     stimulus_count: int = 1
     extensions: List[str] = field(default_factory=lambda: [".png", ".jpg", ".jpeg", ".bmp"])

@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 
 MESSAGE_LABEL_STYLE = "color: white; background: rgba(0, 0, 0, 110); padding: 24px; font-size: 28pt; font-weight: 700;"
 RESULT_LABEL_STYLE = "color: white; background: rgba(0, 0, 0, 150); padding: 8px; font-size: 72pt; font-weight: 800;"
+FIGURE_RESPONSE_LABEL_STYLE = "color: white; background: transparent; font-size: 26pt; font-weight: 800;"
 
 
 DEFAULT_RESPONSE_KEYS = {
@@ -185,6 +186,16 @@ class HandStimuliPresentation(QWidget):
         self._final_marker_label.setFixedSize(80, 80)
         self._final_marker_label.setStyleSheet("background: white;")
         self._final_marker_label.hide()
+        self._figure_left_response_label = QLabel("разные", self)
+        self._figure_left_response_label.setAlignment(Qt.AlignCenter)
+        self._figure_left_response_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._figure_left_response_label.setStyleSheet(FIGURE_RESPONSE_LABEL_STYLE)
+        self._figure_left_response_label.hide()
+        self._figure_right_response_label = QLabel("та же", self)
+        self._figure_right_response_label.setAlignment(Qt.AlignCenter)
+        self._figure_right_response_label.setAttribute(Qt.WA_TransparentForMouseEvents, True)
+        self._figure_right_response_label.setStyleSheet(FIGURE_RESPONSE_LABEL_STYLE)
+        self._figure_right_response_label.hide()
         self._intro_player = QMediaPlayer(self)
         self._intro_player.setVideoOutput(self._intro_video_widget)
         self._intro_player.mediaStatusChanged.connect(self._on_intro_media_status_changed)
@@ -357,6 +368,8 @@ class HandStimuliPresentation(QWidget):
         self._intro_video_widget.hide()
         self._intro_marker_label.hide()
         self._final_marker_label.hide()
+        if phase != "stimulus":
+            self._hide_figure_response_labels()
         self._phase = phase
         self._phase_remaining_ms = max(0, int(duration_ms))
         self._phase_deadline_ms = self._clock.elapsed() + self._phase_remaining_ms
@@ -369,6 +382,7 @@ class HandStimuliPresentation(QWidget):
         elif phase == "stimulus":
             pixmap = QPixmap(self._current_stimulus)
             self._show_stimulus_pixmap(pixmap)
+            self._update_figure_response_labels()
             self._stimulus_clock.restart()
             self.stimulusShown.emit(self._current_stimulus)
         elif phase == "blank":
@@ -603,6 +617,7 @@ class HandStimuliPresentation(QWidget):
             self._intro_marker_label.hide()
         if hasattr(self, "_final_marker_label"):
             self._final_marker_label.hide()
+        self._hide_figure_response_labels()
         self._message_label.hide()
         self._image_label.clear()
         self._image_label.hide()
@@ -655,6 +670,44 @@ class HandStimuliPresentation(QWidget):
 
     def _is_arrows_mode(self):
         return int(getattr(self.settings, "stimulus_type_curr", 0)) == 2
+
+    def _figure_response_labels_enabled(self):
+        return (
+            int(getattr(self.settings, "stimulus_type_curr", 0)) == 1
+            and bool(getattr(self.settings, "show_figure_response_labels", True))
+        )
+
+    def _hide_figure_response_labels(self):
+        if hasattr(self, "_figure_left_response_label"):
+            self._figure_left_response_label.hide()
+        if hasattr(self, "_figure_right_response_label"):
+            self._figure_right_response_label.hide()
+
+    def _update_figure_response_labels(self):
+        if self._phase != "stimulus" or not self._figure_response_labels_enabled():
+            self._hide_figure_response_labels()
+            return
+        self._position_figure_response_labels()
+        self._figure_left_response_label.show()
+        self._figure_right_response_label.show()
+        self._figure_left_response_label.raise_()
+        self._figure_right_response_label.raise_()
+
+    def _position_figure_response_labels(self):
+        label_width = min(300, max(220, int(self.width() * 0.24)))
+        label_height = min(60, max(70, int(self.height() * 0.10)))
+        side_margin = 4 #int(self.width() * 0.005)
+        bottom_margin = int(self.height() * 0.08)
+        
+        y = self.height() - label_height - bottom_margin
+        print(side_margin, y, label_width, label_height)
+        self._figure_left_response_label.setGeometry(side_margin, y, label_width, label_height)
+        self._figure_right_response_label.setGeometry(
+            self.width() - side_margin - label_width,
+            y,
+            label_width,
+            label_height,
+        )
 
     def _update_background(self):
         pixmap = self._current_background_pixmap()
@@ -746,6 +799,7 @@ class HandStimuliPresentation(QWidget):
             self._show_fit_pixmap(self._welcome_pixmap)
         elif self._phase == "stimulus" and self._current_stimulus:
             self._show_stimulus_pixmap(QPixmap(self._current_stimulus))
+            self._update_figure_response_labels()
         elif self._phase == "finished" and not self._final_pixmap.isNull():
             self._show_fit_pixmap(self._final_pixmap)
             self._position_final_marker()

@@ -87,6 +87,11 @@ class StimuliControlPanel(QFrame):
             getattr(stimuli, "figures_bundle", ""),
         )
         self.check_box_all_stimuli = create_check_box(getattr(stimuli, "use_all_stimuli", True), "Все стимулы", parent=self)
+        self.check_box_figure_response_labels = create_check_box(
+            getattr(stimuli, "show_figure_response_labels", True),
+            "Подписи ответов для фигур",
+            parent=self,
+        )
         self.spin_box_stimulus_count = create_spin_box(1, 10000, getattr(stimuli, "stimulus_count", 1), parent=self, w=80)
 
         self.spin_box_isi = create_spin_box(0.1, 30.0, stimuli.isi_s, parent=self, data_type="float", step=0.1, decimals=1, w=80)
@@ -135,6 +140,7 @@ class StimuliControlPanel(QFrame):
         layout.addLayout(create_hbox([QLabel("Тип стимулов:", frame), self.combo_box_stimulus_type]))
         layout.addLayout(create_hbox([QLabel("HLJT:", frame), self.combo_box_hljt_bundle]))
         layout.addLayout(create_hbox([QLabel("MentalRotation:", frame), self.combo_box_mental_rotation_bundle]))
+        layout.addWidget(self.check_box_figure_response_labels)
         layout.addLayout(create_hbox([QLabel("Количество:", frame), self.spin_box_stimulus_count, self.check_box_all_stimuli]))
         return frame
 
@@ -184,6 +190,7 @@ class StimuliControlPanel(QFrame):
         self.combo_box_hljt_bundle.currentTextChanged.connect(self._on_bundle_changed)
         self.combo_box_mental_rotation_bundle.currentTextChanged.connect(self._on_bundle_changed)
         self.check_box_all_stimuli.stateChanged.connect(self._on_stimulus_count_changed)
+        self.check_box_figure_response_labels.stateChanged.connect(self._sync_settings_from_ui)
         self.spin_box_stimulus_count.valueChanged.connect(self._on_stimulus_count_changed)
         self.spin_box_isi.valueChanged.connect(self._sync_settings_from_ui)
         self.check_box_isi_range.stateChanged.connect(self._sync_settings_from_ui)
@@ -218,6 +225,7 @@ class StimuliControlPanel(QFrame):
         self.settings.stimuli.stimuli_folder = self._current_stimuli_folder()
         self.settings.stimuli.hands_bundle = self.combo_box_hljt_bundle.currentText()
         self.settings.stimuli.figures_bundle = self.combo_box_mental_rotation_bundle.currentText()
+        self.settings.stimuli.show_figure_response_labels = self.check_box_figure_response_labels.isChecked()
         self.settings.stimuli.use_all_stimuli = self.check_box_all_stimuli.isChecked()
         self.settings.stimuli.stimulus_count = int(self.spin_box_stimulus_count.value())
         self.settings.stimuli.isi_s = float(self.spin_box_isi.value())
@@ -238,6 +246,7 @@ class StimuliControlPanel(QFrame):
         self.settings.stimuli.monitor = int(self.spin_box_monitor.value())
         self._update_timing_widgets()
         self._update_stimulus_count_widgets()
+        self._update_figure_response_labels_widget()
 
     def _update_timing_widgets(self):
         cross_range_enabled = self.check_box_isi_range.isChecked()
@@ -254,6 +263,9 @@ class StimuliControlPanel(QFrame):
         is_arrows = self._is_arrows_stimulus_type()
         self.check_box_all_stimuli.setEnabled(not is_arrows)
         self.spin_box_stimulus_count.setEnabled(is_arrows or not self.check_box_all_stimuli.isChecked())
+
+    def _update_figure_response_labels_widget(self):
+        self.check_box_figure_response_labels.setEnabled(self.combo_box_stimulus_type.currentIndex() == 1)
 
     @staticmethod
     def _ordered_range_values(min_widget, max_widget):
