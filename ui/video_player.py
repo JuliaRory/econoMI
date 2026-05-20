@@ -10,6 +10,25 @@ from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtWidgets import QApplication, QLabel, QWidget
 
+try:
+    import vlc
+except Exception:
+    vlc = None
+
+
+def _add_vlc_dll_directory():
+    if not sys.platform.startswith("win"):
+        return
+    for base_dir in (os.environ.get("ProgramFiles"), os.environ.get("ProgramFiles(x86)")):
+        if not base_dir:
+            continue
+        vlc_dir = os.path.join(base_dir, "VideoLAN", "VLC")
+        if os.path.isfile(os.path.join(vlc_dir, "libvlc.dll")):
+            if hasattr(os, "add_dll_directory"):
+                os.add_dll_directory(vlc_dir)
+            os.environ["PATH"] = vlc_dir + os.pathsep + os.environ.get("PATH", "")
+            return
+
 
 MESSAGE_LABEL_STYLE = "color: white; background: rgba(0, 0, 0, 110); padding: 24px; font-size: 28pt; font-weight: 700;"
 RESULT_LABEL_STYLE = "color: white; background: rgba(0, 0, 0, 150); padding: 8px; font-size: 72pt; font-weight: 800;"
@@ -121,6 +140,8 @@ class HandStimuliPresentation(QWidget):
     stimulusShown = pyqtSignal(str)
     responseCaptured = pyqtSignal(dict)
     trialFinished = pyqtSignal(dict)
+    _introVideoEnded = pyqtSignal()
+    _introVideoError = pyqtSignal()
 
     def __init__(self, settings, stimuli_files=None, parent=None):
         super().__init__(parent)
@@ -148,6 +169,10 @@ class HandStimuliPresentation(QWidget):
         self._response_keymap = self._load_response_keymap()
         self._intro_media_prepared = False
         self._intro_media_failed = False
+        self._intro_backend = ""
+        self._intro_vlc_instance = None
+        self._intro_vlc_player = None
+        self._intro_vlc_media = None
 
         self.setWindowTitle("econoMI stimuli")
         self.setFocusPolicy(Qt.StrongFocus)
@@ -201,9 +226,11 @@ class HandStimuliPresentation(QWidget):
         self._intro_player = QMediaPlayer(self)
         self._intro_player.setVideoOutput(self._intro_video_widget)
         self._intro_player.mediaStatusChanged.connect(self._on_intro_media_status_changed)
+        self._introVideoEnded.connect(self._finish_intro_video)
+        self._introVideoError.connect(self._skip_failed_intro_video)
 
-        self._prepare_intro_video()
         self._set_monitor()
+        self._prepare_intro_video()
         self._show_blank()
 
     @property
@@ -303,8 +330,18 @@ class HandStimuliPresentation(QWidget):
         self._position_intro_marker()
         self._intro_marker_label.show()
         self._intro_marker_label.raise_()
-        self._intro_player.setPosition(0)
-        self._intro_player.play()
+        if self._intro_backend == "vlc":
+            self._intro_vlc_player.stop()
+            self._intro_vlc_player.set_media(self._intro_vlc_media)
+            self._intro_vlc_player.play()
+            return
+
+        if self._intro_backend == "qt":
+            self._intro_player.setPosition(0)
+            self._intro_player.play()
+            return
+
+        self._start_next_trial()
 
     def _prepare_intro_video(self):
         if self._intro_media_failed:
@@ -314,28 +351,85 @@ class HandStimuliPresentation(QWidget):
         if not os.path.isfile(self._intro_video_path):
             return False
         self._intro_media_failed = False
+
+        if vlc is not None:
+            try:
+                self._configure_intro_vlc_player()
+                self._intro_vlc_media = self._intro_vlc_instance.media_new(self._intro_video_path)
+                self._intro_vlc_media.parse_async()
+                self._intro_vlc_player.set_media(self._intro_vlc_media)
+                self._intro_backend = "vlc"
+                self._intro_media_prepared = True
+                return True
+            except Exception as exc:
+                print(f"Warning: VLC intro player could not be prepared: {exc}. Falling back to Qt media player.")
+
         self._intro_player.setMedia(QMediaContent(QUrl.fromLocalFile(self._intro_video_path)))
+        self._intro_backend = "qt"
         self._intro_media_prepared = True
         return True
 
+    def _configure_intro_vlc_player(self):
+        if self._intro_vlc_player is not None:
+            return
+        _add_vlc_dll_directory()
+        self._intro_vlc_instance = vlc.Instance(
+            "--file-caching=100",
+            "--no-video-title-show",
+            "--quiet",
+            "--no-sub-autodetect-file",
+            "--no-spu",
+        )
+        self._intro_vlc_player = self._intro_vlc_instance.media_player_new()
+        if sys.platform.startswith("win"):
+            self._intro_vlc_player.set_hwnd(int(self._intro_video_widget.winId()))
+        elif sys.platform.startswith("linux"):
+            self._intro_vlc_player.set_xwindow(int(self._intro_video_widget.winId()))
+        elif sys.platform.startswith("darwin"):
+            self._intro_vlc_player.set_nsobject(int(self._intro_video_widget.winId()))
+
+        events = self._intro_vlc_player.event_manager()
+        events.event_attach(vlc.EventType.MediaPlayerEndReached, self._on_vlc_intro_end_reached)
+        events.event_attach(vlc.EventType.MediaPlayerEncounteredError, self._on_vlc_intro_error)
+
     def _stop_intro_video(self):
         self._intro_player.stop()
+        if self._intro_vlc_player is not None:
+            self._intro_vlc_player.stop()
         self._intro_video_widget.hide()
         self._intro_marker_label.hide()
 
     def _on_intro_media_status_changed(self, status):
         if status == QMediaPlayer.EndOfMedia and self._phase == "intro_video" and not self._finished:
-            self._intro_video_widget.hide()
-            self._intro_marker_label.hide()
-            self._start_next_trial()
+            self._finish_intro_video()
         elif status == QMediaPlayer.InvalidMedia:
             self._intro_media_failed = True
             self._intro_media_prepared = False
-            print(f"Warning: intro video '{self._intro_video_path}' could not be loaded. Skipping intro.")
             if self._phase == "intro_video" and not self._finished:
-                self._intro_video_widget.hide()
-                self._intro_marker_label.hide()
-                self._start_next_trial()
+                self._skip_failed_intro_video()
+
+    def _on_vlc_intro_end_reached(self, _event):
+        self._introVideoEnded.emit()
+
+    def _on_vlc_intro_error(self, _event):
+        self._introVideoError.emit()
+
+    def _finish_intro_video(self):
+        if self._phase != "intro_video" or self._finished:
+            return
+        self._intro_video_widget.hide()
+        self._intro_marker_label.hide()
+        self._start_next_trial()
+
+    def _skip_failed_intro_video(self):
+        self._intro_media_failed = True
+        self._intro_media_prepared = False
+        if self._phase != "intro_video" or self._finished:
+            return
+        print(f"Warning: intro video '{self._intro_video_path}' could not be loaded. Skipping intro.")
+        self._intro_video_widget.hide()
+        self._intro_marker_label.hide()
+        self._start_next_trial()
 
     def _position_intro_marker(self):
         margin = 0

@@ -14,6 +14,7 @@ a = Analysis(
     hiddenimports=[
         "PyQt5.QtMultimedia",
         "PyQt5.QtMultimediaWidgets",
+        "vlc",
     ],
     hookspath=[],
     hooksconfig={},
